@@ -1,6 +1,6 @@
 # GitHub Trending Widget — Product Specification
 
-> Version: 2.0
+> Version: 3.0
 > Date: 2026-03-28
 > Status: Implemented
 
@@ -17,11 +17,10 @@ A lightweight macOS menu bar app that displays the top 10 GitHub trending reposi
 - **Lightweight**: ~11MB .app bundle, minimal CPU/memory footprint
 - **Bilingual**: Full Chinese/English toggle with one button
 - **Offline-first**: Cached data loads instantly, refresh only when you want
+- **Favorites**: Save interesting repos for long-term reference
 
 ## 3. Non-Goals
 
-- No data persistence / history / database
-- No favorites, bookmarks, or collections
 - No push notifications or alerts
 - No user accounts or authentication
 - No cross-platform support (macOS only)
@@ -113,6 +112,11 @@ interface AnalyzedRepo {
   category: string;          // AI-assigned category
   summary: LocalizedSummary;
 }
+
+interface FavoriteRepo {
+  repo: AnalyzedRepo;
+  favoritedAt: string;       // ISO date string
+}
 ```
 
 ### 5.3 AI Summary Strategy
@@ -143,40 +147,43 @@ interface AnalyzedRepo {
 - **Trigger**: Click tray icon to show/hide
 
 ```
-┌──────────────────────────────────┐
-│  GitHub 每周热榜        EN  🔄   │  ← drag region + controls
-│──────────────────────────────────│
-│  1  project-name    Rust  +1.2k★ │
-│  2  project-name    Python +980★ │
-│  3  project-name    TS    +870★  │
-│  4  ...                          │
-│  ...                             │
-│ 10  project-name    Go    +320★  │
-└──────────────────────────────────┘
+┌───────────────────────────────────┐
+│  GitHub 每周热榜     EN ☆ 🔄     │  ← drag region + controls
+│───────────────────────────────────│
+│  1  project-a    ♡  Rust  +1.2k★ │
+│  2  project-b    ♥  Python +980★ │  ← ♥ = favorited
+│  3  project-c    ♡  TS    +870★  │
+│  4  ...                           │
+│  ...                              │
+│ 10  project-z    ♡  Go    +320★  │
+└───────────────────────────────────┘
 ```
 
 **Row item spec**:
 - Rank number (semibold, muted gray)
 - Repo name (13px, truncated)
 - Owner + language (11px, secondary text)
+- Favorite heart toggle: ♡ (outline) / ♥ (filled red) — click toggles, with scale animation
 - Weekly star delta (right-aligned, `+1.2k ★` format)
 - Hover: subtle bg highlight with transition
 - Click: slides to detail view
 - Staggered fade-in animation on load
 
 **Header controls**:
-- Title (draggable region)
+- Title (draggable region) ��� changes to "我的收藏" / "My Favorites" in favorites view
 - Language toggle pill: "EN" ↔ "中"
+- Favorites toggle: ☆ (trending view) / ★ filled amber (favorites view) — click switches view
 - Refresh button (spins while loading)
 
 ### 6.3 Detail View (Slide-in)
 
 - **Behavior**: Slides in from right within the same window
 - **Back**: Arrow button returns to list
+- **Favorite**: Heart toggle next to repo name
 
 ```
 ┌──────────────────────────────────┐
-│  ←  project-name         ★ 12k  │
+│  ←  project-name  ♡      ★ 12k  │  ← ♡ toggles favorite
 │     owner · ★ 12k               │
 │──────────────────────────────────│
 │  [TypeScript] [AI Tools]         │
@@ -194,7 +201,29 @@ interface AnalyzedRepo {
 └──────────────────────────────────┘
 ```
 
-### 6.4 States
+### 6.4 Favorites View
+
+- **Access**: Click ☆ star icon in header to switch from trending to favorites
+- **Content**: All saved favorite repos, sorted newest first
+- **Empty state**: Centered "还没有收藏" / "No favorites yet" message
+
+```
+┌───────────────────────────────────┐
+│  我的收藏             EN ★ 🔄     │  ← ★ filled = on favorites view
+│───────────────────────────────────│
+│  project-x    ✕   TS     Mar 28  │  ← ✕ removes from favorites
+│  project-b    ✕   Python Mar 28  │
+│  project-y    ✕   Rust   Mar 21  │
+│                                   │
+│                                   │
+└───────────────────────────────────┘
+```
+
+- Each row shows: repo name, remove button (✕), language, favorited date
+- Click a row → slides to DetailView (same as trending)
+- Remove button uses `stopPropagation` to avoid triggering row click
+
+### 6.5 States
 
 | State | Display |
 |-------|---------|
@@ -226,6 +255,9 @@ All UI chrome text exists in both Chinese and English:
 | error | 获取失败，请重试 | Failed to fetch, please retry |
 | noCli | 未找到 Claude Code | Claude Code not found |
 | back | 返回 | Back |
+| favorites | 我的收藏 | My Favorites |
+| noFavorites | 还没有收藏 | No favorites yet |
+| removeFavorite | 取消收藏 | Remove |
 
 ### 7.2 Implementation
 
@@ -268,15 +300,28 @@ No auto-hide on focus loss. Window stays until explicitly toggled via tray icon.
 
 ---
 
-## 9. Caching
+## 9. Local Storage
 
-- **Storage**: `localStorage` key `github_trending_cache`
+### 9.1 Trending Cache
+
+- **Key**: `github_trending_cache`
 - **Contents**: Full `AnalyzedRepo[]` array + `fetchedAt` timestamp
 - **Behavior**:
   - App opens → load from cache instantly (no network request)
   - User clicks refresh → fetch fresh data → update cache
   - No automatic expiry — manual refresh only
 - **First launch**: No cache → auto-fetch + show skeleton loading
+
+### 9.2 Favorites
+
+- **Key**: `github_trending_favorites`
+- **Contents**: `FavoriteRepo[]` array (repo data + `favoritedAt` timestamp)
+- **Behavior**:
+  - Persistent across app restarts
+  - Add: click ♡ on any repo → saved with current timestamp
+  - Remove: click ♥ on favorited repo OR click ✕ in favorites view
+  - No size limit enforced (~5MB localStorage is sufficient for hundreds of repos)
+- **Sort**: Newest favorited first
 
 ---
 
@@ -314,14 +359,16 @@ github-trending-widget/
 │       └── ai.rs                  # Claude CLI integration
 ├── src/
 │   ├── main.tsx                   # React entry
-│   ├── App.tsx                    # Main app (list view + cache logic)
-│   ├── types.ts                   # TypeScript interfaces
+│   ├── App.tsx                    # Main app (routing, state, cache)
+│   ├── types.ts                   # TypeScript interfaces (AnalyzedRepo, FavoriteRepo)
+│   ├── favorites.ts               # Favorites localStorage CRUD utilities
 │   ├── i18n.ts                    # Locale context + translations
 │   ├── index.css                  # Global styles + animations
 │   └── components/
-│       ├── Header.tsx             # Title + language toggle + refresh
-│       ├── TrendingItem.tsx       # Single row in list
-│       ├── DetailView.tsx         # Expanded repo summary
+│       ├── Header.tsx             # Title + lang toggle + favorites toggle + refresh
+│       ├── TrendingItem.tsx       # Trending row with favorite heart toggle
+│       ├── FavoritesView.tsx      # Favorites list with remove button + empty state
+│       ├── DetailView.tsx         # Expanded repo summary with favorite toggle
 │       ├── Skeleton.tsx           # Loading placeholder
 │       └── ErrorState.tsx         # Error display
 ├── index.html
