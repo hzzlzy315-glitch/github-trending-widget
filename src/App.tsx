@@ -3,10 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { LocaleProvider } from './i18n';
 import { Header } from './components/Header';
 import { TrendingItem } from './components/TrendingItem';
+import { FavoritesView } from './components/FavoritesView';
 import { Skeleton } from './components/Skeleton';
 import { ErrorState } from './components/ErrorState';
 import { DetailView } from './components/DetailView';
-import type { AnalyzedRepo } from './types';
+import { loadFavorites, addFavorite, removeFavorite, isFavorited } from './favorites';
+import type { AnalyzedRepo, FavoriteRepo } from './types';
 
 const CACHE_KEY = 'github_trending_cache';
 
@@ -47,6 +49,8 @@ function AppContent() {
   const [selectedRepo, setSelectedRepo] = useState<AnalyzedRepo | null>(null);
   const [loading, setLoading] = useState(!cached.current);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'trending' | 'favorites'>('trending');
+  const [favorites, setFavorites] = useState<FavoriteRepo[]>(loadFavorites());
 
   const fetchRepos = useCallback(async () => {
     setLoading(true);
@@ -74,32 +78,69 @@ function AppContent() {
     setSelectedRepo(null);
   }, []);
 
+  const handleToggleFavorite = useCallback((repo: AnalyzedRepo) => {
+    if (isFavorited(favorites, repo)) {
+      const updated = removeFavorite(repo.name, repo.owner);
+      setFavorites(updated);
+    } else {
+      const updated = addFavorite(repo);
+      setFavorites(updated);
+    }
+  }, [favorites]);
+
+  const handleToggleView = useCallback(() => {
+    setView((prev) => (prev === 'trending' ? 'favorites' : 'trending'));
+    setSelectedRepo(null);
+  }, []);
+
   if (selectedRepo) {
     return (
       <div className="flex flex-col h-screen">
-        <DetailView repo={selectedRepo} onBack={handleBack} />
+        <DetailView
+          repo={selectedRepo}
+          onBack={handleBack}
+          isFavorited={isFavorited(favorites, selectedRepo)}
+          onToggleFavorite={handleToggleFavorite}
+        />
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-screen">
-      <Header loading={loading} onRefresh={fetchRepos} />
+      <Header
+        loading={loading}
+        onRefresh={fetchRepos}
+        view={view}
+        onToggleView={handleToggleView}
+      />
       <div className="flex-1 overflow-y-auto py-1">
-        {loading && repos.length === 0 && <Skeleton />}
-        {!loading && error && repos.length === 0 && (
-          <ErrorState message={error} onRetry={fetchRepos} />
-        )}
-        {repos.length > 0 && (
-          <div className="flex flex-col">
-            {repos.map((repo) => (
-              <TrendingItem
-                key={`${repo.owner}/${repo.name}`}
-                repo={repo}
-                onSelect={setSelectedRepo}
-              />
-            ))}
-          </div>
+        {view === 'favorites' ? (
+          <FavoritesView
+            favorites={favorites}
+            onSelect={setSelectedRepo}
+            onRemove={handleToggleFavorite}
+          />
+        ) : (
+          <>
+            {loading && repos.length === 0 && <Skeleton />}
+            {!loading && error && repos.length === 0 && (
+              <ErrorState message={error} onRetry={fetchRepos} />
+            )}
+            {repos.length > 0 && (
+              <div className="flex flex-col">
+                {repos.map((repo) => (
+                  <TrendingItem
+                    key={`${repo.owner}/${repo.name}`}
+                    repo={repo}
+                    onSelect={setSelectedRepo}
+                    isFavorited={isFavorited(favorites, repo)}
+                    onToggleFavorite={handleToggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

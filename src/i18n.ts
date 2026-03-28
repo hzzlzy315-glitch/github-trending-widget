@@ -22,6 +22,9 @@ const translations = {
     whyItHelps: '对你有什么帮助',
     openGithub: '在 GitHub 中打开',
     back: '返回',
+    favorites: '我的收藏',
+    noFavorites: '还没有收藏',
+    removeFavorite: '取消收藏',
   },
   en: {
     title: 'GitHub Weekly Hot 10',
@@ -36,6 +39,9 @@ const translations = {
     whyItHelps: 'Why it helps you',
     openGithub: 'Open on GitHub',
     back: 'Back',
+    favorites: 'My Favorites',
+    noFavorites: 'No favorites yet',
+    removeFavorite: 'Remove',
   },
 } as const;
 

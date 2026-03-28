@@ -22,4 +22,9 @@ export interface AnalyzedRepo {
   summary: LocalizedSummary;
 }
 
+export interface FavoriteRepo {
+  repo: AnalyzedRepo;
+  favoritedAt: string; // ISO date string
+}
+
 export type Locale = 'zh' | 'en';
