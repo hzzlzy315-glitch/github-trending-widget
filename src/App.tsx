@@ -17,13 +17,13 @@ interface CacheData {
   fetchedAt: string;
 }
 
-function loadCache(): AnalyzedRepo[] | null {
+function loadCache(): CacheData | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const cache: CacheData = JSON.parse(raw);
     if (cache.repos && cache.repos.length > 0) {
-      return cache.repos;
+      return cache;
     }
   } catch {
     // corrupted cache
@@ -45,7 +45,8 @@ function saveCache(repos: AnalyzedRepo[]): void {
 
 function AppContent() {
   const cached = useRef(loadCache());
-  const [repos, setRepos] = useState<AnalyzedRepo[]>(cached.current ?? []);
+  const [repos, setRepos] = useState<AnalyzedRepo[]>(cached.current?.repos ?? []);
+  const [fetchedAt, setFetchedAt] = useState<string | null>(cached.current?.fetchedAt ?? null);
   const [selectedRepo, setSelectedRepo] = useState<AnalyzedRepo | null>(null);
   const [loading, setLoading] = useState(!cached.current);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +59,8 @@ function AppContent() {
     try {
       const data = await invoke<AnalyzedRepo[]>('fetch_trending_repos');
       setRepos(data);
+      const now = new Date().toISOString();
+      setFetchedAt(now);
       saveCache(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -113,6 +116,7 @@ function AppContent() {
         onRefresh={fetchRepos}
         view={view}
         onToggleView={handleToggleView}
+        fetchedAt={fetchedAt}
       />
       <div className="flex-1 overflow-y-auto py-1">
         {view === 'favorites' ? (

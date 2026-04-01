@@ -19,6 +19,11 @@ async fn fetch_trending_repos() -> Result<Vec<AnalyzedRepo>, String> {
     Ok(analyzed)
 }
 
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 fn toggle_window(window: &tauri::WebviewWindow) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
@@ -32,7 +37,7 @@ fn toggle_window(window: &tauri::WebviewWindow) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![fetch_trending_repos])
+        .invoke_handler(tauri::generate_handler![fetch_trending_repos, quit_app])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
 

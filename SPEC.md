@@ -1,7 +1,7 @@
 # GitHub Trending Widget — Product Specification
 
-> Version: 3.0
-> Date: 2026-03-28
+> Version: 3.1
+> Date: 2026-04-01
 > Status: Implemented
 
 ---
@@ -148,7 +148,7 @@ interface FavoriteRepo {
 
 ```
 ┌───────────────────────────────────┐
-│  GitHub 每周热榜     EN ☆ 🔄     │  ← drag region + controls
+│  GitHub 每周热榜 3天前 EN ☆ 🔄 ✕ │  ← drag region + controls
 │───────────────────────────────────│
 │  1  project-a    ♡  Rust  +1.2k★ │
 │  2  project-b    ♥  Python +980★ │  ← ♥ = favorited
@@ -174,6 +174,13 @@ interface FavoriteRepo {
 - Language toggle pill: "EN" ↔ "中"
 - Favorites toggle: ☆ (trending view) / ★ filled amber (favorites view) — click switches view
 - Refresh button (spins while loading)
+- Quit button (✕): subtle gray, hover turns red — calls `app.exit(0)` to fully terminate the process
+- Last synced timestamp: relative time next to title in trending view only
+  - < 1 min → "刚刚" / "just now"
+  - < 60 min → "X 分钟前" / "Xm ago"
+  - < 24 hrs → "X 小时前" / "Xh ago"
+  - < 7 days → "X 天前" / "Xd ago"
+  - ≥ 7 days → localized date ("3月28日" / "Mar 28")
 
 ### 6.3 Detail View (Slide-in)
 
@@ -379,7 +386,20 @@ github-trending-widget/
 
 ---
 
-## 12. Performance
+## 12. Build & Install
+
+After every successful `tauri build`:
+
+1. `killall github-trending-widget` — terminate any running instance
+2. `rm -rf "/Applications/GitHub Trending Widget.app"` — remove old version
+3. `cp -R` new `.app` bundle from `target/release/bundle/macos/` to `/Applications/`
+4. `open "/Applications/GitHub Trending Widget.app"` — launch the updated version
+
+**Never leave duplicate .app copies running.** Always replace in-place so there is exactly one installed version at `/Applications/GitHub Trending Widget.app`.
+
+---
+
+## 13. Performance
 
 | Metric | Target | Actual |
 |--------|--------|--------|

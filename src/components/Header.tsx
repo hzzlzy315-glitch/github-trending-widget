@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { useLocale, useT } from '../i18n';
 
 interface HeaderProps {
@@ -5,9 +6,29 @@ interface HeaderProps {
   onRefresh: () => void;
   view: 'trending' | 'favorites';
   onToggleView: () => void;
+  fetchedAt: string | null;
 }
 
-export function Header({ loading, onRefresh, view, onToggleView }: HeaderProps) {
+function formatSyncTime(isoString: string, locale: 'zh' | 'en'): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return locale === 'zh' ? '刚刚' : 'just now';
+  if (diffMins < 60) return locale === 'zh' ? `${diffMins} 分钟前` : `${diffMins}m ago`;
+  if (diffHours < 24) return locale === 'zh' ? `${diffHours} 小时前` : `${diffHours}h ago`;
+  if (diffDays < 7) return locale === 'zh' ? `${diffDays} 天前` : `${diffDays}d ago`;
+
+  return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+export function Header({ loading, onRefresh, view, onToggleView, fetchedAt }: HeaderProps) {
   const { locale, toggleLocale } = useLocale();
   const t = useT();
 
@@ -16,13 +37,20 @@ export function Header({ loading, onRefresh, view, onToggleView }: HeaderProps) 
       className="flex items-center justify-between px-4 pt-3 pb-2 select-none shrink-0"
       data-tauri-drag-region
     >
-      {/* Left: title */}
-      <h1
-        className="text-xs font-medium text-gray-500 dark:text-gray-400 pointer-events-none tracking-wide"
-        data-tauri-drag-region
-      >
-        {view === 'favorites' ? t('favorites') : t('title')}
-      </h1>
+      {/* Left: title + sync time */}
+      <div className="flex items-baseline gap-2 pointer-events-none" data-tauri-drag-region>
+        <h1
+          className="text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide"
+          data-tauri-drag-region
+        >
+          {view === 'favorites' ? t('favorites') : t('title')}
+        </h1>
+        {fetchedAt && view === 'trending' && (
+          <span className="text-[9px] text-gray-400/70 dark:text-gray-500/70" data-tauri-drag-region>
+            {formatSyncTime(fetchedAt, locale)}
+          </span>
+        )}
+      </div>
 
       {/* Right: lang toggle + favorites toggle + refresh */}
       <div className="flex items-center gap-1.5">
@@ -81,6 +109,25 @@ export function Header({ loading, onRefresh, view, onToggleView }: HeaderProps) 
             className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`}
           >
             <path d="M13.836 2.477a.75.75 0 0 1 .75.75v3.182a.75.75 0 0 1-.75.75h-3.182a.75.75 0 0 1 0-1.5h1.37l-.84-.841a4.5 4.5 0 0 0-7.08.932.75.75 0 0 1-1.3-.75 6 6 0 0 1 9.44-1.242l.842.84V3.227a.75.75 0 0 1 .75-.75Zm-.911 7.5A.75.75 0 0 1 13.199 11a6 6 0 0 1-9.44 1.241l-.84-.84v1.371a.75.75 0 0 1-1.5 0V9.591a.75.75 0 0 1 .75-.75H5.35a.75.75 0 0 1 0 1.5H3.98l.841.841a4.5 4.5 0 0 0 7.08-.932.75.75 0 0 1 1.025-.273Z" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => invoke('quit_app')}
+          className="p-1 rounded-md text-gray-400/60 dark:text-gray-500/60
+                     hover:text-red-500 dark:hover:text-red-400
+                     hover:bg-black/5 dark:hover:bg-white/10
+                     transition-colors duration-150 cursor-default"
+          aria-label="Quit"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className="w-3 h-3"
+          >
+            <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
           </svg>
         </button>
       </div>
